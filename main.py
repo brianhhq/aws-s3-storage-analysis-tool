@@ -2,55 +2,76 @@
 import logging
 import os
 import boto3
-import datetime
+import ast
 import multiprocessing as mp
 
 LOG = logging.getLogger()
 LOG.addHandler(logging.StreamHandler())
-cw = boto3.client('cloudwatch', region_name='ap-southeast-2')
-client = boto3.client('s3')
+
+
+def get_price(location='Asia Pacific (Sydney)', volumeType='Standard'):
+    pricing_client = boto3.client('pricing', region_name='us-east-1')
+    results = pricing_client.get_products(
+        ServiceCode='AmazonS3',
+        Filters=[
+            {
+                'Type': 'TERM_MATCH',
+                'Field': 'location',
+                'Value': location
+            },
+            {
+                'Type': 'TERM_MATCH',
+                'Field': 'volumeType',
+                'Value': volumeType
+            },
+        ]
+    )
+    price_list = ast.literal_eval(results['PriceList'][0])
+
+    price = price_list['terms']['OnDemand']['5QVJMK36NJC9G6DC.JRTCKXETXF']['priceDimensions'] \
+        ['5QVJMK36NJC9G6DC.JRTCKXETXF.PGHJ3S3EYE']['pricePerUnit']['USD']
+    return float(price)
 
 
 def get_statistics_by_bucket(bucket):
-    now = datetime.datetime.now()
+    total_size = 0
+    num_of_files = 0
+    last_modified_strftime = 0
+
+    type_size = {
+        'STANDARD': 0,
+        'STANDARD_IA': 0,
+        'ONEZONE_IA': 0,
+        'REDUCED_REDUNDANCY': 0,
+        'GLACIER': 0
+    }
     result = {
         'Name': bucket['Name'],
         'CreationDate': str(bucket['CreationDate'])
     }
-    response_size = cw.get_metric_statistics(
-        Namespace='AWS/S3',
-        MetricName='BucketSizeBytes',
-        Dimensions=[
-            {'Name': 'BucketName', 'Value': bucket['Name']},
-            {'Name': 'StorageType', 'Value': 'StandardStorage'}
-        ],
-        Statistics=['Average'],
-        Period=3600,
-        StartTime=(now - datetime.timedelta(days=2)).isoformat(),
-        EndTime=now.isoformat()
-    )
-    if len(response_size["Datapoints"]) > 0 :
-        result['Total Size'] = response_size["Datapoints"][0]['Average']
-    response_num_of_files = cw.get_metric_statistics(
-        Namespace='AWS/S3',
-        MetricName='NumberOfObjects',
-        Dimensions=[
-            {'Name': 'BucketName', 'Value': bucket['Name']},
-            {'Name': 'StorageType', 'Value': 'AllStorageTypes'}
-        ],
-        Statistics=['Average'],
-        Period=3600,
-        StartTime=(now - datetime.timedelta(days=2)).isoformat(),
-        EndTime=now.isoformat()
-    )
-    if len(response_num_of_files["Datapoints"]) > 0:
-        result['Number of Files'] = response_num_of_files["Datapoints"][0]['Average']
 
+    session = boto3.session.Session()
+    s3_session = session.resource('s3')
+    b = s3_session.Bucket(result['Name'])
+    object_summary_iterator = b.objects.all()
+
+    for obj in object_summary_iterator:
+        type_size[obj.storage_class] += obj.size
+        total_size += obj.size
+        num_of_files += 1
+        if int(obj.last_modified.strftime('%s')) > last_modified_strftime:
+            result['LastModified'] = str(obj.last_modified)
+    result['Number of Files'] = num_of_files
+    result['Total Size'] = total_size / 1000000000
+    result['Size by Type'] = type_size
+    price = get_price()
+    result['Cost'] = str(result['Total Size'] * price) + " USD"
     return result
 
 
 def get_s3_statistics():
     stats = []
+    client = boto3.client('s3')
     pool = mp.Pool(4)
     buckets = client.list_buckets()
     for bucket in buckets['Buckets']:
