@@ -10,7 +10,9 @@ def get_bucket_info(bucket):
         'Name': bucket['Name'],
         'CreationDate': str(bucket['CreationDate'])
     }
-    b = boto3.resource('s3').Bucket(result['Name'])
+    session = boto3.session.Session()
+    s3_session = session.resource('s3')
+    b = s3_session.Bucket(result['Name'])
     for item in b.objects.all():
         num_of_files += 1
         total_size += item.size
@@ -22,7 +24,7 @@ def get_bucket_info(bucket):
 if __name__ == "__main__":
     s3 = boto3.client('s3')
     response = s3.list_buckets()
-    pool = mp.Pool(7)
+    pool = mp.Pool(4)
     results = []
     for bucket_item in response['Buckets']:
         r = pool.apply_async(get_bucket_info, [bucket_item])
