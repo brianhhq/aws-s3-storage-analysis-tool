@@ -1,53 +1,74 @@
 #!/usr/bin/env python3
+import logging
+import os
 import boto3
+import datetime
 import multiprocessing as mp
 
+LOG = logging.getLogger()
+LOG.addHandler(logging.StreamHandler())
+cw = boto3.client('cloudwatch', region_name='ap-southeast-2')
+client = boto3.client('s3')
 
-get_last_modified = lambda obj: int(obj.last_modified.strftime('%s'))
 
-s3 = boto3.client('s3')
-
-
-def get_bucket_info(bucket):
-    total_size = 0
-    num_of_files = 0
-    last_modified_strftime = 0
-    type_size = {
-        'STANDARD': 0,
-        'STANDARD_IA': 0,
-        'ONEZONE_IA': 0,
-        'REDUCED_REDUNDANCY': 0,
-        'GLACIER': 0
-    }
+def get_statistics_by_bucket(bucket):
+    now = datetime.datetime.now()
     result = {
         'Name': bucket['Name'],
         'CreationDate': str(bucket['CreationDate'])
     }
+    response_size = cw.get_metric_statistics(
+        Namespace='AWS/S3',
+        MetricName='BucketSizeBytes',
+        Dimensions=[
+            {'Name': 'BucketName', 'Value': bucket['Name']},
+            {'Name': 'StorageType', 'Value': 'StandardStorage'}
+        ],
+        Statistics=['Average'],
+        Period=3600,
+        StartTime=(now - datetime.timedelta(days=2)).isoformat(),
+        EndTime=now.isoformat()
+    )
+    if len(response_size["Datapoints"]) > 0 :
+        result['Total Size'] = response_size["Datapoints"][0]['Average']
+    response_num_of_files = cw.get_metric_statistics(
+        Namespace='AWS/S3',
+        MetricName='NumberOfObjects',
+        Dimensions=[
+            {'Name': 'BucketName', 'Value': bucket['Name']},
+            {'Name': 'StorageType', 'Value': 'AllStorageTypes'}
+        ],
+        Statistics=['Average'],
+        Period=3600,
+        StartTime=(now - datetime.timedelta(days=2)).isoformat(),
+        EndTime=now.isoformat()
+    )
+    if len(response_num_of_files["Datapoints"]) > 0:
+        result['Number of Files'] = response_num_of_files["Datapoints"][0]['Average']
 
-    session = boto3.session.Session()
-    s3_session = session.resource('s3')
-    b = s3_session.Bucket(result['Name'])
-
-    object_summary_iterator = b.objects.all()
-    for obj in object_summary_iterator:
-        type_size[obj.storage_class] += obj.size
-        total_size += obj.size
-        num_of_files += 1
-        if int(obj.last_modified.strftime('%s')) > last_modified_strftime:
-            result['LastModified'] = str(obj.last_modified)
-
-    result['Number of Files'] = num_of_files
-    result['Total Size'] = total_size / 1000000000
-    result['Size by Type'] = type_size
     return result
 
 
-if __name__ == "__main__":
-    response = s3.list_buckets()
+def get_s3_statistics():
+    stats = []
     pool = mp.Pool(4)
-    results = []
-    for bucket_item in response['Buckets']:
-        r = pool.apply_async(get_bucket_info, [bucket_item])
-        results.append(r.get())
+    buckets = client.list_buckets()
+    for bucket in buckets['Buckets']:
+        stat = pool.apply_async(get_statistics_by_bucket, [bucket])
+        stats.append(stat.get())
     pool.close()
+    return stats
+
+
+def main():
+    results = get_s3_statistics()
     print(results)
+
+
+if __name__ == "__main__":
+    try:
+        if os.environ['DEBUG'] == "true":
+            LOG.setLevel(logging.DEBUG)
+    except KeyError:
+        pass
+    main()
