@@ -1,5 +1,6 @@
 import boto3
 import ast
+import json
 
 
 class S3Statistics:
@@ -46,7 +47,7 @@ class S3Statistics:
         )
         price_list = ast.literal_eval(results['PriceList'][0])
 
-        price = price_list['terms']['OnDemand']['5QVJMK36NJC9G6DC.JRTCKXETXF']['priceDimensions'] \
+        price = price_list['terms']['OnDemand']['5QVJMK36NJC9G6DC.JRTCKXETXF']['priceDimensions']\
             ['5QVJMK36NJC9G6DC.JRTCKXETXF.PGHJ3S3EYE']['pricePerUnit']['USD']
         return float(price)
 
@@ -87,8 +88,7 @@ class S3Statistics:
     def get_s3_statistics(self):
         buckets = self.s3_client.list_buckets()
         for bucket in buckets['Buckets']:
-            if bucket['Name'] == 'annamonitoring' or bucket['Name'] == 'ha-cloudtrail':
-                continue
             stat = self.get_statistics_by_bucket(bucket)
             self.stats.append(stat)
+        self.stats = json.dumps(self.stats)
         return self.stats
