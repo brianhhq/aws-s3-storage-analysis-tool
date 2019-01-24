@@ -60,11 +60,31 @@ docker exec -it aws-s3-storage-analysis-tool sh
 docker stop aws-s3-storage-analysis-tool && docker rm aws-s3-storage-analysis-tool
 ```
 
+
+* Run the program
+```bash
+python main.py
+```
+
+* Debug the program
+```bash
+DEBUG=true python main.py
+```
+
+
 ## Running the tests
 
 ```bash
 docker exec -e AWS_ACCESS_KEY_ID=<put your aws access id> -e AWS_SECRET_ACCESS_KEY=<put your aws access key> -t aws-s3-storage-analysis-tool python -m unittest tests.S3StatisticsTestCase
 ```
+
+or
+
+```
+python -m unittest tests.S3StatisticsTestCase
+```
+
+
 
 
 ## Built With

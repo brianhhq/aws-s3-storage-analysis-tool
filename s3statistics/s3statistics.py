@@ -1,6 +1,11 @@
 import boto3
 import ast
 import json
+import logging
+import sys
+
+# Logging program
+LOG = logging.getLogger()
 
 
 class S3Statistics:
@@ -13,6 +18,12 @@ class S3Statistics:
     region_name = ''
 
     def __init__(self, aws_access_key_id, aws_secret_access_key, region_name='ap-southeast-2'):
+        """
+        Initialize S3Statistics with following parameter
+        :param aws_access_key_id:
+        :param aws_secret_access_key:
+        :param region_name:
+        """
         self.aws_access_key_id = aws_access_key_id
         self.aws_secret_access_key = aws_secret_access_key
         self.region_name = region_name
@@ -30,6 +41,12 @@ class S3Statistics:
                                            aws_secret_access_key=self.aws_secret_access_key)
 
     def get_price(self, location='Asia Pacific (Sydney)', volume_type='Standard'):
+        """
+        Get S3 storage price
+        :param location:
+        :param volume_type:
+        :return: price
+        """
         results = self.pricing_client.get_products(
             ServiceCode='AmazonS3',
             Filters=[
@@ -49,9 +66,15 @@ class S3Statistics:
 
         price = price_list['terms']['OnDemand']['5QVJMK36NJC9G6DC.JRTCKXETXF']['priceDimensions']\
             ['5QVJMK36NJC9G6DC.JRTCKXETXF.PGHJ3S3EYE']['pricePerUnit']['USD']
+        LOG.debug(price)
         return float(price)
 
     def get_statistics_by_bucket(self, bucket):
+        """
+        Get the statistics(Total Size, Number of files, Total Size and Cost) of given S3 bucket.
+        :param bucket:
+        :return:
+        """
         total_size = 0
         num_of_files = 0
         last_modified_strftime = 0
@@ -83,9 +106,14 @@ class S3Statistics:
         result['Size by Type'] = type_size
         price = self.get_price()
         result['Cost'] = str(total_size * price) + " USD"
+        LOG.debug(result)
         return result
 
     def get_s3_statistics(self):
+        """
+        Get the statistics(Inventory List, Total Size, Number of files, Total Size and Cost)
+        :return:
+        """
         buckets = self.s3_client.list_buckets()
         for bucket in buckets['Buckets']:
             stat = self.get_statistics_by_bucket(bucket)
