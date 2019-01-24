@@ -1,0 +1,91 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/python:3.6-stretch
+    working_directory: ~/repo
+    steps:
+      - checkout
+      - setup_remote_docker
+      # Download and cache dependencies
+      - restore_cache:
+          keys:
+          - v1-dependencies-{{ checksum "requirements.txt" }}
+          # fallback to using the latest cache if no exact match is found
+          - v1-dependencies-
+
+      - run:
+          name: install dependencies
+          command: |
+            python3 -m venv venv
+            . venv/bin/activate
+            pip install -r requirements.txt
+
+      - save_cache:
+          paths:
+            - ./venv
+          key: v1-dependencies-{{ checksum "requirements.txt" }}
+
+      # run tests!
+      - run:
+          name: run tests
+          command: |
+            . venv/bin/activate
+            python -m unittest tests.S3StatisticsTestCase
+
+      - restore_cache:
+          keys:
+          - v1-docker-images-{{ .Branch }}
+          # fallback to using the latest cache if no exact match is found
+          - v1-docker-images-
+          paths:
+            - ~/caches/app.tar
+
+      - run:
+          name: Load Docker image layer cache
+          command: |
+            set +o pipefail
+            docker load -i ~/caches/app.tar | true
+
+            # We wait a few seconds/minutes until all cached images appears in the daemon
+            # before starting a build.
+            if [ -e ~/caches/app.tar ]; then
+              for image in application; do
+                i=0
+                while [ $i -le 10 ]; do
+                  if ! docker image history $image:cache; then
+                    sleep 5
+                  fi
+                  i=$(( $i+1 ))
+                done
+              done
+            fi
+            docker image ls
+
+      - run:
+          name: Build builder Docker image
+          command: |
+            docker build -t application:cache --cache-from=application:cache .
+            docker tag application:cache ${DOCKER_REGISTRY}/${CIRCLE_PROJECT_REPONAME}:${CIRCLE_BRANCH}
+
+      - deploy:
+          name: Push application Docker image
+          timeout: 1200
+          command: |
+            docker login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD}
+            docker push ${DOCKER_REGISTRY}/${CIRCLE_PROJECT_REPONAME}:${CIRCLE_BRANCH}
+            if [ "${CIRCLE_BRANCH}" == "master" ]; then
+              docker tag ${DOCKER_REGISTRY}/${CIRCLE_PROJECT_REPONAME}:${CIRCLE_BRANCH} ${DOCKER_REGISTRY}/${CIRCLE_PROJECT_REPONAME}:latest
+              docker push ${DOCKER_REGISTRY}/${CIRCLE_PROJECT_REPONAME}:latest
+            fi
+
+      - run:
+          name: Prepare Docker image layer cache
+          command: |
+            mkdir -p ~/caches
+            docker save -o ~/caches/app.tar application:cache
+            du -h ~/caches/app.tar
+      - save_cache:
+          key: v1-docker-images-{{ .Branch }}-{{ epoch }}
+          paths:
+            - ~/caches/app.tar
