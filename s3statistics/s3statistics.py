@@ -91,5 +91,4 @@ class S3Statistics:
                 continue
             stat = self.get_statistics_by_bucket(bucket)
             self.stats.append(stat)
-        pool.close()
         return self.stats
