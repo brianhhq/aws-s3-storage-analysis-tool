@@ -84,9 +84,6 @@ or
 python -m unittest tests.S3StatisticsTestCase
 ```
 
-
-
-
 ## Built With
 
 * [boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html) - Boto is the Amazon Web Services (AWS) SDK for Python, which allows Python developers to write software that makes use of Amazon services like S3 and EC2. Boto provides an easy to use, object-oriented API as well as low-level direct service access.
@@ -110,9 +107,12 @@ This project is licensed under the MIT License.
 
 ### Highlight of the project
 
-* [CI] Continuous Integration has been applied in this repo. CircleCI is chosen to be the CI tools to make sure building stuff faster, never shipping broken code and decreasing code review time. Build caching mechanism has been considered to reduce the amount of building time.
-* [Dockerization] Docker is chosen as a artifact as it increases CI Efficiency, simplifying configurations and ensures rapid deployment. It is also good to ship product across platform easily. The principle of minimum packages/images has been considered to ensure shipping smallest but functional application over low-bandwidth connection network.
+* [CI] Continuous Integration has been applied in this repo. CircleCI is chosen to be the CI tools to make sure building stuff faster, never shipping broken code and decreasing code review time.
+* [Process Improvement]  Build caching mechanism has been considered to reduce the amount of building time.
+* [Dockerization] Docker is chosen as a artifact as it increases CI Efficiency, simplifying configurations and ensures rapid deployment. It is also good to ship product across platform easily. 
+* [Performance] The principle of minimum packages/images has been considered to ensure shipping smallest but functional application over low-bandwidth connection network.
 * [Documentation] Documentation has been provided to make it easy for a user to run this program. Github integrates with CircleCI to quickly check the status of build status.
 * [Code Style] Good practise of programming has been applied as I followed PEP 8 style guide. Comments have been applied where necessary. Right name conventions for functions, filename and variables have been considered for easy understanding. Logging mechanism is in place.
 * [Unit Testing] Unit testing has been applied to ensure quality of code and find bugs earlier and easier.
 * [Security] Branch protection rule(Signed Commit) has been applied. Commits pushed to matching branches must have [verified signatures](https://help.github.com/articles/signing-commits-using-gpg/) to ensure no one can pretend someone to commit. This is very important to large organisations with a lot of engineers. 
+* [LOGGING] Logging feature has been implemented for the ease of trouble shooting. 
